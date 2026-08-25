@@ -14,6 +14,7 @@ export const ICONS = {
   deaf: svg('<path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>'),
   mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7"/>'),
   hash: svg('<path d="M5 9h14M5 15h14M10 4l-1 16M16 4l-1 16"/>'),
+  pencil: svg('<path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M13.5 6.5l4 4"/>'),
   lock: svg('<rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>'),
   check: svg('<path d="M4 12.5l5 5L20 6.5"/>'),
   alert: svg('<path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/>')
@@ -62,7 +63,7 @@ export function escapeHTML(s) {
    Channel list
    ============================================================ */
 
-export function renderChannels({ channels, users, currentId, selfId, onJoin, onDelete }) {
+export function renderChannels({ channels, users, currentId, selfId, onJoin, onEdit }) {
   const list = $('channel-list');
   const frag = document.createDocumentFragment();
 
@@ -72,6 +73,11 @@ export function renderChannels({ channels, users, currentId, selfId, onJoin, onD
     li.className = 'channel';
     if (ch.id === currentId) li.classList.add('is-current');
     if (members.length >= (ch.limit || 99)) li.classList.add('is-full');
+
+    // The row and its edit control are siblings: a button inside a button is
+    // invalid HTML and swallows the inner click.
+    const row = document.createElement('div');
+    row.className = 'channel-row';
 
     const btn = document.createElement('button');
     btn.className = 'channel-btn';
@@ -85,7 +91,25 @@ export function renderChannels({ channels, users, currentId, selfId, onJoin, onD
       <span class="channel-count">${members.length}${ch.limit ? '/' + ch.limit : ''}</span>`;
     if (ch.locked) btn.title = `${ch.name} — password required`;
     btn.addEventListener('click', () => onJoin(ch.id));
-    li.appendChild(btn);
+    row.appendChild(btn);
+
+    // Only channels people made themselves are editable; the ones from
+    // config.json belong to whoever runs the server.
+    if (!ch.permanent && onEdit) {
+      const edit = document.createElement('button');
+      edit.className = 'channel-edit';
+      edit.type = 'button';
+      edit.title = `Edit ${ch.name}`;
+      edit.setAttribute('aria-label', `Edit ${ch.name}`);
+      edit.innerHTML = ICONS.pencil;
+      edit.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onEdit(ch);
+      });
+      row.appendChild(edit);
+    }
+
+    li.appendChild(row);
 
     if (members.length) {
       const ul = document.createElement('ul');
@@ -103,16 +127,6 @@ export function renderChannels({ channels, users, currentId, selfId, onJoin, onD
         ul.appendChild(row);
       }
       li.appendChild(ul);
-    } else if (!ch.permanent && onDelete) {
-      const del = document.createElement('button');
-      del.className = 'btn btn-ghost';
-      del.style.cssText = 'margin:2px 0 6px 26px;padding:4px 12px;font-size:12px';
-      del.textContent = 'Delete channel';
-      del.addEventListener('click', (e) => {
-        e.stopPropagation();
-        onDelete(ch.id);
-      });
-      li.appendChild(del);
     }
 
     frag.appendChild(li);

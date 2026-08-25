@@ -65,6 +65,16 @@
   --safe-t: env(safe-area-inset-top, 0px);
 }
 
+/* In fullscreen there is no status bar or navigation bar to avoid, but the
+   platform may still report insets. Honouring them there leaves the dock
+   floating above a dead strip instead of sitting on the bottom edge. */
+@media all and (display-mode: fullscreen) {
+  :root {
+    --safe-b: 0px;
+    --safe-t: 0px;
+  }
+}
+
 :root[data-theme='dark'],
 :root[data-theme='system'] {
   /* placeholder so the cascade order below is predictable */
@@ -117,6 +127,16 @@
 html,
 body {
   height: 100%;
+}
+
+/* Dynamic viewport units track the real visible area as mobile browser bars
+   slide in and out; percentage heights resolve against a fixed box and leave
+   the layout either short of the bottom edge or running past it. */
+@supports (height: 100dvh) {
+  html,
+  body {
+    height: 100dvh;
+  }
 }
 
 body {
@@ -344,6 +364,21 @@ a {
 }
 .btn-ghost:hover {
   background: var(--glass-quiet);
+}
+
+.btn-danger {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 32%, transparent);
+  background: color-mix(in srgb, var(--bad) 8%, transparent);
+}
+.btn-danger:hover:not(:disabled) {
+  background: linear-gradient(140deg, var(--bad), #d43b6a);
+  border-color: transparent;
+  color: #fff;
+}
+.btn-danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn-lg {
@@ -885,11 +920,69 @@ select.input option {
   border-radius: var(--r-sm);
   transition: background 0.24s var(--ease);
 }
+.channel-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.channel-edit {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition:
+    opacity 0.2s var(--ease),
+    background 0.2s var(--ease),
+    color 0.2s var(--ease),
+    transform 0.28s var(--spring);
+}
+.channel-edit .ico {
+  width: 15px;
+  height: 15px;
+}
+.channel-edit:hover {
+  background: var(--glass-quiet);
+  border-color: var(--edge-dim);
+  color: var(--ink);
+}
+.channel-edit:active {
+  transform: scale(0.9);
+}
+
+/* On pointer devices the pencil stays out of the way until you go looking
+   for it; touch devices have no hover, so it is always visible there. */
+@media (hover: hover) {
+  .channel-edit {
+    opacity: 0;
+  }
+  .channel-row:hover .channel-edit,
+  .channel-edit:focus-visible,
+  .channel.is-current .channel-edit {
+    opacity: 1;
+  }
+}
+
+/* Fingers need a bigger target than a mouse pointer does. */
+@media (hover: none) {
+  .channel-edit {
+    width: 40px;
+    height: 40px;
+  }
+}
+
 .channel-btn {
   display: flex;
   align-items: center;
   gap: 11px;
   width: 100%;
+  min-width: 0;
   padding: 10px 12px;
   border: 1px solid transparent;
   border-radius: var(--r-sm);
@@ -1621,6 +1714,16 @@ body.is-ptt .dock-ptt {
   overflow-y: auto;
   padding: 20px 24px calc(26px + var(--safe-b));
   scrollbar-width: thin;
+}
+
+/* Destructive actions live below the form, separated from it. */
+.sheet-foot {
+  padding: 4px 24px calc(22px + var(--safe-b));
+  border-top: 1px solid var(--edge-dim);
+  margin-top: auto;
+}
+.sheet-foot .hint {
+  text-align: center;
 }
 
 .tab-panel {

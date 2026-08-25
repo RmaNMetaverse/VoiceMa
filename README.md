@@ -11,8 +11,9 @@ through the server.
   **double-tap latch** for hands-free talking
 - Full device control: pick any microphone and any speaker/headset
 - **The microphone is only open while you are in a channel** — never before
-- Installs to the home screen on Android and iOS, and to the desktop, running
-  **fullscreen**
+- Installs to the home screen on Android and iOS, and to the desktop; the
+  installed phone app runs **fullscreen**
+- Channels can be **renamed and deleted** by whoever made them
 - Keeps the screen awake while you are looking at it, and **keeps audio running
   when the screen goes off**
 - Text chat per channel with **system notifications** when you are away
@@ -121,9 +122,10 @@ Once the CA is trusted:
 - **iOS / Safari** — Share → *Add to Home Screen*.
 - **Desktop Chrome/Edge** — the install icon in the address bar.
 
-Installed, it runs fullscreen — no browser chrome or address bar — and keeps
-its own audio session. In a normal browser tab the app asks for fullscreen when
-you join a channel; turn that off under Settings → App.
+Installed on a phone it runs fullscreen — no browser chrome or address bar —
+and keeps its own audio session. Desktop browsers and ordinary mobile tabs are
+never taken over: fullscreen is only requested for the installed app on a touch
+device, and Settings → App turns even that off.
 
 ---
 
@@ -169,7 +171,18 @@ that would end the background session.
 | Push-to-talk | Settings → Voice → *Push to talk*; hold **Space** (rebindable) or the dock button on phones |
 | Per-person volume | Slider on their card |
 | Text chat | Speech-bubble icon in the header |
-| New channel | *New channel* in the sidebar; empty user-made channels can be deleted |
+| New channel | *New channel* in the sidebar |
+| Rename / delete a channel | Pencil icon on the channel row (hover on desktop, always visible on touch) |
+
+### Editing channels
+
+Channels people create can be renamed and re-topiced from the pencil on their
+row, and deleted once empty. **The password cannot be changed** — swapping the
+code under people who already know it is worse than making them recreate the
+room, so the editor hides that field and the server ignores it.
+
+Channels declared in `config.json` belong to whoever runs the server: they show
+no pencil and the server refuses to rename or delete them.
 
 ### Locked channels
 

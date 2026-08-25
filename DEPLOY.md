@@ -253,6 +253,10 @@ sudo rm -rf /opt/voicema/certs && sudo bash /opt/voicema/install.sh --yes
 ```
 and reinstall the CA on each device — it is a new CA.
 
+**Old styling or behaviour after an update** — clients cache the app shell in a
+service worker. Assets are fetched network-first, so one reload is normally
+enough; if something looks stuck, close every tab of the app and reopen it.
+
 **Cannot install to the home screen** — always the certificate. Any warning
 blocks the service worker, and no service worker means no install.
 

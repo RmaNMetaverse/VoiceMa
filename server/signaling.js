@@ -390,11 +390,38 @@ export class Hub {
         break;
       }
 
+      case 'channel:rename': {
+        const ch = this.channel(msg.id);
+        // Channels declared in config.json belong to the operator, not the room.
+        if (!ch || ch.permanent) {
+          this.send(user.ws, { t: 'notice', text: 'That channel cannot be edited.' });
+          break;
+        }
+        const name = clean(msg.name, MAX_NAME);
+        if (!name) break;
+
+        ch.name = name;
+        if (typeof msg.description === 'string') ch.description = clean(msg.description, 60);
+
+        // The id stays put so nobody is dropped mid-call, and the password is
+        // deliberately untouched — salt and hash are never editable here.
+        this.saveChannels();
+        this.pushRoster();
+        break;
+      }
+
       case 'channel:delete': {
         const ch = this.channel(msg.id);
-        if (!ch || ch.permanent) break;
+        if (!ch || ch.permanent) {
+          this.send(user.ws, { t: 'notice', text: 'That channel cannot be deleted.' });
+          break;
+        }
+        // Deleting a room out from under people mid-conversation is rude.
         if (this.occupancy(ch.id) > 0) {
-          this.send(user.ws, { t: 'notice', text: 'Channel is not empty.' });
+          this.send(user.ws, {
+            t: 'notice',
+            text: `${ch.name} still has someone in it.`
+          });
           break;
         }
         this.channels = this.channels.filter((c) => c.id !== ch.id);

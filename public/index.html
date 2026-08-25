@@ -402,7 +402,8 @@
           <p class="hint" id="background-hint"></p>
           <label class="switch-row">
             <span
-              ><strong>Fullscreen</strong><small>Hide the browser bars while you are in a channel</small></span
+              ><strong>Fullscreen on phones</strong
+              ><small>Only when installed to the home screen — never in a desktop browser</small></span
             >
             <input type="checkbox" id="chk-fullscreen" class="switch" checked />
           </label>
@@ -438,7 +439,7 @@
     <div class="sheet-backdrop" id="channel-backdrop" hidden></div>
     <section class="sheet sheet-sm glass" id="channel-dialog" data-sheen hidden>
       <header class="sheet-head">
-        <h2>New channel</h2>
+        <h2 id="channel-dialog-title">New channel</h2>
         <button class="icon-btn" id="close-channel-dialog" aria-label="Close">
           <svg viewBox="0 0 24 24" class="ico"><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
@@ -452,7 +453,8 @@
           <span class="field-label">Topic <em>optional</em></span>
           <input id="channel-desc" class="input" maxlength="60" placeholder="Weekly catch-up" />
         </label>
-        <label class="field">
+
+        <label class="field" id="channel-pass-field">
           <span class="field-label">Password <em>optional</em></span>
           <input
             id="channel-pass"
@@ -464,8 +466,28 @@
           />
           <p class="hint">Anyone joining will be asked for this.</p>
         </label>
-        <button class="btn btn-primary btn-block" type="submit"><span>Create channel</span></button>
+
+        <p class="hint" id="channel-pass-note" hidden>
+          The password cannot be changed here. To change it, delete the channel
+          and create it again.
+        </p>
+
+        <button class="btn btn-primary btn-block" type="submit">
+          <span id="channel-submit-label">Create channel</span>
+        </button>
       </form>
+
+      <footer class="sheet-foot" id="channel-danger" hidden>
+        <button class="btn btn-danger btn-block" id="delete-channel">
+          <svg viewBox="0 0 24 24" class="ico">
+            <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6" />
+          </svg>
+          <span>Delete channel</span>
+        </button>
+        <p class="hint" id="channel-danger-hint">
+          The channel must be empty. This cannot be undone.
+        </p>
+      </footer>
     </section>
 
     <!-- Locked channel prompt -->

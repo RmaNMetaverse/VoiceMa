@@ -5,7 +5,7 @@
  * always go to the network. Only the static shell is cached, so a stale cache
  * can never desync a live call.
  */
-const VERSION = 'voicema-v2';
+const VERSION = 'voicema-v3';
 
 // Resolved against the worker's own location, so the same file works whether
 // the app is mounted at / or at /VoiceMa/.
@@ -78,20 +78,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets: serve from cache immediately, refresh in the background.
+  // Assets: network first, cache as the fallback.
+  //
+  // Cache-first would be the usual choice, but this app is served from a box on
+  // the same LAN — the network is never the slow part, and serving a stale
+  // script after a deploy is a real cost. The cache exists so the shell still
+  // opens when the server is down, not to save milliseconds.
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(VERSION).then((c) => c.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached ?? Response.error());
-      return cached ?? network;
-    })
+    fetch(request)
+      .then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(VERSION).then((c) => c.put(request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request).then((cached) => cached ?? Response.error()))
   );
 });
 

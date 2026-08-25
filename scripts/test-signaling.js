@@ -52,6 +52,18 @@ function client(name) {
         }, timeout);
       });
     },
+    /**
+     * Like wait(), but ignores anything already in the inbox.
+     *
+     * wait() scanning history is convenient for one-shot assertions, but it
+     * silently matches an identical message from an earlier phase of the test —
+     * which turns a real regression into a passing check. Use this whenever the
+     * same message type occurs more than once in a run.
+     */
+    waitNew(match, timeout = 4000) {
+      const from = inbox.length;
+      return api.wait((m) => match(m) && inbox.indexOf(m) >= from, timeout);
+    },
     open: () => new Promise((res) => ws.on('open', res))
   };
   return api;
@@ -157,6 +169,59 @@ async function run() {
   );
   check('empty user channel can be deleted', !!afterDelete);
 
+  // --- renaming -----------------------------------------------------
+  a.send({ t: 'channel:create', name: 'Old Name', description: 'before' });
+  const renameable = await a.wait((m) => m.t === 'channel:created' && m.id.startsWith('old-name'));
+
+  a.send({ t: 'channel:rename', id: renameable.id, name: 'New Name', description: 'after' });
+  const renamed2 = await a.wait(
+    (m) => m.t === 'roster' && m.channels.find((c) => c.id === renameable.id)?.name === 'New Name'
+  );
+  const updated = renamed2.channels.find((c) => c.id === renameable.id);
+  check('a channel can be renamed', updated.name === 'New Name', updated.name);
+  check('the topic can be edited too', updated.description === 'after', updated.description);
+  check('renaming keeps the id, so nobody is dropped', updated.id === renameable.id);
+
+  // A locked channel must keep its password through a rename.
+  a.send({ t: 'channel:create', name: 'Keep Secret', password: 'stays' });
+  const locked2 = await a.wait((m) => m.t === 'channel:created' && m.id.startsWith('keep-secret'));
+  a.send({ t: 'channel:rename', id: locked2.id, name: 'Renamed Secret', password: 'hacked' });
+  await a.wait(
+    (m) => m.t === 'roster' && m.channels.find((c) => c.id === locked2.id)?.name === 'Renamed Secret'
+  );
+
+  b.send({ t: 'join', channel: locked2.id, password: 'hacked' });
+  const notChanged = await b.waitNew((m) => m.t === 'join:denied' && m.channel === locked2.id);
+  check('a rename cannot change the password', !!notChanged);
+
+  b.send({ t: 'join', channel: locked2.id, password: 'stays' });
+  const stillWorks = await b.wait(
+    (m) => m.t === 'roster' && m.users.find((u) => u.id === b.id)?.channel === locked2.id
+  );
+  check('the original password still works after renaming', !!stillWorks);
+
+  // Deleting is refused while someone is inside.
+  a.send({ t: 'channel:delete', id: locked2.id });
+  const busy = await a.waitNew((m) => m.t === 'notice' && m.text.includes('still has someone'));
+  check('an occupied channel cannot be deleted', !!busy, busy.text);
+
+  b.send({ t: 'join', channel: 'general' });
+  await b.wait((m) => m.t === 'roster' && m.users.find((u) => u.id === b.id)?.channel === 'general');
+  a.send({ t: 'channel:delete', id: locked2.id });
+  a.send({ t: 'channel:delete', id: renameable.id });
+  await a.wait(
+    (m) =>
+      m.t === 'roster' &&
+      !m.channels.some((c) => c.id === locked2.id || c.id === renameable.id)
+  );
+
+  // Config-declared channels are the operator's, not the room's.
+  a.send({ t: 'channel:rename', id: 'general', name: 'Hijacked' });
+  const refused = await a.waitNew((m) => m.t === 'notice' && m.text.includes('cannot be edited'));
+  check('configured channels cannot be renamed', !!refused);
+  const generalNow = a.inbox.filter((m) => m.t === 'roster').at(-1).channels.find((c) => c.id === 'general');
+  check('…and its name is untouched', generalNow.name === 'General', generalNow.name);
+
   const permanent = afterDelete.channels.find((c) => c.id === 'general');
   a.send({ t: 'channel:delete', id: 'general' });
   await sleep(300);
@@ -180,7 +245,9 @@ async function run() {
 
   // --- locked channels ---------------------------------------------
   a.send({ t: 'channel:create', name: 'Vault', password: 'hunter2' });
-  const vault = await a.wait((m) => m.t === 'channel:created' && m.locked);
+  // Matched by id, not just `locked`: wait() also scans messages already in the
+  // inbox, and an earlier locked channel would otherwise be picked up here.
+  const vault = await a.wait((m) => m.t === 'channel:created' && m.id.startsWith('vault'));
   check('a channel can be created with a password', vault.locked === true, vault.id);
 
   const listed = await a.wait(
@@ -195,11 +262,13 @@ async function run() {
   );
 
   b.send({ t: 'join', channel: vault.id });
-  const noPass = await b.wait((m) => m.t === 'join:denied');
+  const noPass = await b.waitNew((m) => m.t === 'join:denied' && m.channel === vault.id);
   check('joining without a password is refused', noPass.channel === vault.id);
 
   b.send({ t: 'join', channel: vault.id, password: 'wrong' });
-  const badPass = await b.wait((m) => m.t === 'join:denied' && m.reason.includes('not right'));
+  const badPass = await b.waitNew(
+    (m) => m.t === 'join:denied' && m.channel === vault.id && m.reason.includes('not right')
+  );
   check('joining with the wrong password is refused', !!badPass);
 
   const stillOut = a.inbox

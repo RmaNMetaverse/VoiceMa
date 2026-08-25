@@ -31,7 +31,8 @@ const state = {
   bindingKey: false,
   pendingJoin: null,
   joinTarget: null,
-  lastCreatedPassword: ''
+  lastCreatedPassword: '',
+  editingChannel: null
 };
 
 const audio = new AudioEngine();
@@ -337,7 +338,7 @@ function renderChannelList() {
     currentId: state.channel,
     selfId: net.selfId,
     onJoin: joinChannel,
-    onDelete: (id) => net.send({ t: 'channel:delete', id })
+    onEdit: openChannelDialog
   });
 }
 
@@ -767,11 +768,28 @@ function updateNotificationHint() {
    Fullscreen
    ============================================================ */
 
-/** Best-effort: browsers only grant this from inside a user gesture. */
+const isTouchDevice = () => matchMedia('(pointer: coarse)').matches;
+
+/** True when launched from a home screen / installed, rather than in a tab. */
+const isInstalledApp = () =>
+  matchMedia('(display-mode: standalone)').matches ||
+  matchMedia('(display-mode: fullscreen)').matches ||
+  matchMedia('(display-mode: minimal-ui)').matches ||
+  navigator.standalone === true;
+
+/**
+ * Fullscreen is for the installed app on a phone, and nowhere else.
+ *
+ * Taking over the whole screen of a desktop browser is obnoxious — people keep
+ * other windows visible and expect their tabs and address bar to stay put. In a
+ * mobile tab it is nearly as rude, and the manifest already covers the
+ * installed case on most devices; this call is the fallback for platforms that
+ * launch installed apps as "standalone" instead of "fullscreen".
+ */
 function requestFullscreen() {
   if (!settings.fullscreen) return;
-  // An installed PWA already runs fullscreen via the manifest.
-  if (matchMedia('(display-mode: fullscreen)').matches) return;
+  if (!isTouchDevice() || !isInstalledApp()) return;
+  if (matchMedia('(display-mode: fullscreen)').matches) return; // already there
   const el = document.documentElement;
   if (document.fullscreenElement || !el.requestFullscreen) return;
   el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
@@ -1049,29 +1067,77 @@ function wireSettings() {
     : 'Audio keeps flowing with the screen off. Android shows the call in your notification shade.';
 }
 
+/**
+ * One sheet, two jobs. Creating offers a password; editing deliberately does
+ * not — changing a room's password underneath the people who know it is worse
+ * than making them recreate the channel.
+ */
+function openChannelDialog(channel = null) {
+  state.editingChannel = channel;
+  const editing = !!channel;
+
+  $('channel-dialog-title').textContent = editing ? 'Edit channel' : 'New channel';
+  $('channel-submit-label').textContent = editing ? 'Save changes' : 'Create channel';
+  $('channel-name').value = editing ? channel.name : '';
+  $('channel-desc').value = editing ? (channel.description ?? '') : '';
+  $('channel-pass').value = '';
+
+  $('channel-pass-field').hidden = editing;
+  $('channel-pass-note').hidden = !(editing && channel.locked);
+  $('channel-danger').hidden = !editing;
+
+  if (editing) {
+    const occupied = state.users.some((u) => u.channel === channel.id);
+    $('delete-channel').disabled = occupied;
+    $('channel-danger-hint').textContent = occupied
+      ? 'Someone is still in this channel. It can be deleted once empty.'
+      : 'This cannot be undone.';
+  }
+
+  openSheet($('channel-dialog'), $('channel-backdrop'));
+  setTimeout(() => $('channel-name').focus(), 120);
+}
+
 function wireChannelDialog() {
   const sheet = $('channel-dialog');
   const backdrop = $('channel-backdrop');
-  $('add-channel').addEventListener('click', () => openSheet(sheet, backdrop));
-  $('close-channel-dialog').addEventListener('click', () => closeSheet(sheet, backdrop));
-  backdrop.addEventListener('click', () => closeSheet(sheet, backdrop));
+  const close = () => {
+    closeSheet(sheet, backdrop);
+    state.editingChannel = null;
+  };
+
+  $('add-channel').addEventListener('click', () => openChannelDialog(null));
+  $('close-channel-dialog').addEventListener('click', close);
+  backdrop.addEventListener('click', close);
 
   $('channel-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const name = $('channel-name').value.trim();
     if (!name) return;
-    const password = $('channel-pass').value;
-    state.lastCreatedPassword = password;
-    net.send({
-      t: 'channel:create',
-      name,
-      description: $('channel-desc').value.trim(),
-      password: password || undefined
-    });
+    const description = $('channel-desc').value.trim();
+    const editing = state.editingChannel;
+
+    if (editing) {
+      net.send({ t: 'channel:rename', id: editing.id, name, description });
+      toast('Channel updated', 'good');
+    } else {
+      const password = $('channel-pass').value;
+      state.lastCreatedPassword = password;
+      net.send({ t: 'channel:create', name, description, password: password || undefined });
+    }
+
     $('channel-name').value = '';
     $('channel-desc').value = '';
     $('channel-pass').value = '';
-    closeSheet(sheet, backdrop);
+    close();
+  });
+
+  $('delete-channel').addEventListener('click', () => {
+    const channel = state.editingChannel;
+    if (!channel) return;
+    if (!window.confirm(`Delete "${channel.name}"? This cannot be undone.`)) return;
+    net.send({ t: 'channel:delete', id: channel.id });
+    close();
   });
 }
 
