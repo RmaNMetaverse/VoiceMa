@@ -801,6 +801,37 @@ function exitFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
 }
 
+/**
+ * Two things the CSS cannot work out on its own.
+ *
+ * --app-h: the real height of the web view. iOS home-screen apps report a dvh
+ * that does not match what they actually paint, which left a gap below the
+ * dock; window.innerHeight is correct there and everywhere else.
+ *
+ * .fs-locked: set only while genuinely in element-fullscreen, where the system
+ * bars really are covered and the safe-area insets should collapse. This is
+ * not the same question as `(display-mode: fullscreen)` — iOS answers that one
+ * from the manifest while still rendering the Dynamic Island and the home
+ * indicator, so trusting it slid the header under the island.
+ */
+function syncViewportMetrics() {
+  // innerHeight, not visualViewport.height: the visual viewport shrinks when
+  // the software keyboard opens, and resizing the whole app out from under
+  // someone mid-sentence is worse than the keyboard covering the composer.
+  const h = window.innerHeight;
+  if (h) document.documentElement.style.setProperty('--app-h', `${Math.round(h)}px`);
+  document.documentElement.classList.toggle('fs-locked', !!document.fullscreenElement);
+}
+
+function watchViewportMetrics() {
+  syncViewportMetrics();
+  // Orientation changes report the previous size if read too early.
+  const later = () => setTimeout(syncViewportMetrics, 120);
+  addEventListener('resize', syncViewportMetrics);
+  addEventListener('orientationchange', later);
+  document.addEventListener('fullscreenchange', later);
+}
+
 /* ============================================================
    Devices
    ============================================================ */
@@ -1332,6 +1363,7 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
 });
 
 wireSheen();
+watchViewportMetrics();
 buildGate();
 wireChrome();
 wireSettings();

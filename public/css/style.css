@@ -65,14 +65,17 @@
   --safe-t: env(safe-area-inset-top, 0px);
 }
 
-/* In fullscreen there is no status bar or navigation bar to avoid, but the
-   platform may still report insets. Honouring them there leaves the dock
-   floating above a dead strip instead of sitting on the bottom edge. */
-@media all and (display-mode: fullscreen) {
-  :root {
-    --safe-b: 0px;
-    --safe-t: 0px;
-  }
+/* Real element-fullscreen covers the status and navigation bars, so any inset
+   the platform still reports is a dead strip the dock would float above.
+   Deliberately NOT keyed off `(display-mode: fullscreen)`: iOS matches that
+   media query from the manifest's declared display mode while presenting the
+   app as standalone, with the Dynamic Island and home indicator very much
+   present. Zeroing the insets there put the header under the island and made
+   the top of the channel sheet untappable. The class is set from JS only when
+   document.fullscreenElement is actually non-null. */
+:root.fs-locked {
+  --safe-b: 0px;
+  --safe-t: 0px;
 }
 
 :root[data-theme='dark'],
@@ -124,18 +127,21 @@
   --ring: 0 0 0 3px rgba(123, 123, 255, 0.4);
 }
 
+/* Page height, in order of preference:
+     --app-h  measured from window.innerHeight — exact on every platform, and
+              the only thing iOS home-screen apps get right (dvh there can be
+              a good 30-60px short, which shows up as a gap under the dock);
+     100dvh   tracks mobile browser bars sliding in and out;
+     100%     last resort for the first paint, before JS has run. */
 html,
 body {
-  height: 100%;
+  height: var(--app-h, 100%);
 }
 
-/* Dynamic viewport units track the real visible area as mobile browser bars
-   slide in and out; percentage heights resolve against a fixed box and leave
-   the layout either short of the bottom edge or running past it. */
 @supports (height: 100dvh) {
   html,
   body {
-    height: 100dvh;
+    height: var(--app-h, 100dvh);
   }
 }
 
