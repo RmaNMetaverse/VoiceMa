@@ -279,7 +279,28 @@ elif [ -f "${SCRIPT_DIR}/server/index.js" ] && [ "$SCRIPT_DIR" != "$APP_DIR" ]; 
   tar -C "$SCRIPT_DIR" --exclude=node_modules --exclude=.git -cf - . | tar -C "$APP_DIR" -xf -
   ok "Copied into ${APP_DIR}"
 elif [ "$SCRIPT_DIR" = "$APP_DIR" ]; then
-  ok "Already installed in place"
+  # Installed by a plain file copy, so there is no checkout here to pull from.
+  # Without this branch the documented update command ("run install.sh again")
+  # silently did nothing: it re-wrote the unit and nginx config around exactly
+  # the same stale source. Fetch a fresh snapshot and lay it over the top.
+  info "Refreshing ${APP_DIR} from ${REPO_URL}"
+  TMP_SRC="$(mktemp -d)"
+  if git clone --depth 1 "$REPO_URL" "${TMP_SRC}/src" >/dev/null 2>&1; then
+    # certs/, data/ and config.json are machine state, not source — never
+    # clobber them. install.sh is held back because this very script is being
+    # read from disk as it runs; it is swapped in by rename at the end, which
+    # leaves the running inode intact.
+    tar -C "${TMP_SRC}/src" --exclude=node_modules --exclude=.git         --exclude=./certs --exclude=./data --exclude=./config.json         --exclude=./install.sh -cf - . | tar -C "$APP_DIR" -xf -
+    if [ -f "${TMP_SRC}/src/install.sh" ]; then
+      cp "${TMP_SRC}/src/install.sh" "${APP_DIR}/.install.sh.new"
+      chmod +x "${APP_DIR}/.install.sh.new"
+      mv -f "${APP_DIR}/.install.sh.new" "${APP_DIR}/install.sh"
+    fi
+    ok "Updated to $(git -C "${TMP_SRC}/src" rev-parse --short HEAD)"
+  else
+    warn "Could not reach ${REPO_URL} — keeping the files already in ${APP_DIR}"
+  fi
+  rm -rf "$TMP_SRC"
 else
   info "Cloning ${REPO_URL}"
   git clone --depth 1 "$REPO_URL" "$APP_DIR"
