@@ -1,0 +1,11 @@
+node_modules/
+
+# Generated per-machine: the CA private key must never be shared.
+certs/
+
+# Runtime state (user-created channels)
+data/
+
+*.log
+.DS_Store
+Thumbs.db

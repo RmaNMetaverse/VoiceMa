@@ -1,0 +1,11 @@
+{
+  "serverName": "VoiceMa",
+  "httpsPort": 8443,
+  "httpRedirectPort": 8080,
+  "password": "",
+  "maxUsersPerChannel": 12,
+  "allowUserChannels": true,
+  "channels": [
+    { "id": "general", "name": "General", "description": "Everyone lands here" }
+  ]
+}

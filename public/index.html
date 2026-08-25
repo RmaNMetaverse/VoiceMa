@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"
+    />
+    <title>VoiceMa</title>
+    <meta name="description" content="Self-hosted LAN voice chat" />
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/icon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+    <link rel="stylesheet" href="/css/style.css" />
+
+    <meta name="theme-color" content="#f4f4fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0b12" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VoiceMa" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="color-scheme" content="light dark" />
+  </head>
+
+  <body>
+    <!-- Drifting colour field behind the glass. Purely decorative. -->
+    <div class="aurora" aria-hidden="true">
+      <span class="blob blob-1"></span>
+      <span class="blob blob-2"></span>
+      <span class="blob blob-3"></span>
+      <span class="grain"></span>
+    </div>
+
+    <!-- ───────────────────────── Sign-in ───────────────────────── -->
+    <section id="gate" class="gate">
+      <div class="glass gate-card" data-sheen>
+        <div class="gate-mark">
+          <img src="/icons/icon.svg" alt="" width="72" height="72" />
+        </div>
+        <h1 class="gate-title" id="gate-server">VoiceMa</h1>
+        <p class="gate-sub">Voice chat on your local network</p>
+
+        <form id="gate-form" class="gate-form" autocomplete="off">
+          <label class="field">
+            <span class="field-label">Display name</span>
+            <input
+              id="gate-name"
+              class="input"
+              type="text"
+              maxlength="24"
+              required
+              placeholder="e.g. Sam"
+              autocomplete="nickname"
+            />
+          </label>
+
+          <label class="field" id="gate-password-field" hidden>
+            <span class="field-label">Server password</span>
+            <input id="gate-password" class="input" type="password" placeholder="••••••••" />
+          </label>
+
+          <div class="hue-row">
+            <span class="field-label">Colour</span>
+            <div class="hue-swatches" id="hue-swatches" role="radiogroup" aria-label="Avatar colour"></div>
+          </div>
+
+          <button class="btn btn-primary btn-lg" type="submit" id="gate-submit">
+            <span>Connect</span>
+          </button>
+          <p class="gate-hint" id="gate-error" role="alert"></p>
+        </form>
+
+        <p class="gate-foot">
+          Microphone access is requested when you join a channel.
+          <a href="/ca.crt" download>Install CA certificate</a>
+        </p>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── App ───────────────────────── -->
+    <main id="app" class="app" hidden>
+      <!-- Channels -->
+      <aside class="pane pane-channels glass" id="pane-channels" data-sheen>
+        <header class="pane-head">
+          <div class="brand">
+            <img src="/icons/icon.svg" alt="" width="30" height="30" class="brand-mark" />
+            <div class="brand-text">
+              <strong id="server-name">VoiceMa</strong>
+              <small id="conn-status" class="status status-connecting">connecting…</small>
+            </div>
+          </div>
+          <button class="icon-btn only-mobile" id="close-channels" aria-label="Close channels">
+            <svg viewBox="0 0 24 24" class="ico"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+
+        <div class="pane-scroll">
+          <h2 class="section-label">Channels</h2>
+          <ul class="channel-list" id="channel-list"></ul>
+
+          <button class="btn btn-ghost btn-block" id="add-channel">
+            <svg viewBox="0 0 24 24" class="ico"><path d="M12 5v14M5 12h14" /></svg>
+            <span>New channel</span>
+          </button>
+        </div>
+
+        <footer class="pane-foot">
+          <button class="btn btn-ghost btn-block" id="open-settings">
+            <svg viewBox="0 0 24 24" class="ico">
+              <circle cx="12" cy="12" r="3.2" />
+              <path
+                d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.1a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"
+              />
+            </svg>
+            <span>Settings</span>
+          </button>
+        </footer>
+      </aside>
+
+      <!-- Stage -->
+      <section class="pane pane-stage">
+        <header class="stage-head glass" data-sheen>
+          <button class="icon-btn only-mobile" id="open-channels" aria-label="Channels">
+            <svg viewBox="0 0 24 24" class="ico"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          </button>
+          <div class="stage-title">
+            <h2 id="channel-title">Not connected</h2>
+            <p id="channel-meta" class="stage-meta">Pick a channel to start talking</p>
+          </div>
+          <div class="stage-actions">
+            <button class="icon-btn" id="toggle-chat" aria-label="Toggle chat" aria-pressed="false">
+              <svg viewBox="0 0 24 24" class="ico">
+                <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4L3 21l1.1-4A8.4 8.4 0 1 1 21 11.5z" />
+              </svg>
+            </button>
+            <button class="icon-btn" id="toggle-theme" aria-label="Theme">
+              <svg viewBox="0 0 24 24" class="ico" id="theme-ico">
+                <circle cx="12" cy="12" r="4.2" />
+                <path d="M12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8L6 18M18 6l1.8-1.8" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="stage-body">
+          <div class="participants" id="participants"></div>
+
+          <div class="empty-state" id="empty-state">
+            <div class="empty-orb"></div>
+            <h3>No channel joined</h3>
+            <p>Select a channel on the left to connect your microphone.</p>
+          </div>
+        </div>
+
+        <!-- Chat -->
+        <aside class="chat glass" id="chat" data-sheen hidden>
+          <header class="chat-head">
+            <h3>Channel chat</h3>
+            <button class="icon-btn" id="close-chat" aria-label="Close chat">
+              <svg viewBox="0 0 24 24" class="ico"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </header>
+          <div class="chat-log" id="chat-log"></div>
+          <form class="chat-form" id="chat-form">
+            <input
+              id="chat-input"
+              class="input"
+              type="text"
+              maxlength="800"
+              placeholder="Message channel…"
+              autocomplete="off"
+            />
+            <button class="icon-btn icon-btn-solid" type="submit" aria-label="Send">
+              <svg viewBox="0 0 24 24" class="ico"><path d="M4 12l16-8-6 8 6 8-16-8z" /></svg>
+            </button>
+          </form>
+        </aside>
+      </section>
+
+      <!-- Control dock -->
+      <footer class="dock glass" data-sheen>
+        <div class="dock-self">
+          <span class="avatar avatar-sm" id="self-avatar"></span>
+          <div class="dock-self-text">
+            <strong id="self-name">You</strong>
+            <span class="meter meter-sm" id="self-meter"><i></i></span>
+          </div>
+        </div>
+
+        <div class="dock-controls">
+          <button class="dock-btn" id="btn-mic" aria-pressed="false" title="Microphone (M)">
+            <svg viewBox="0 0 24 24" class="ico ico-mic-on">
+              <rect x="9" y="3" width="6" height="11" rx="3" />
+              <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7" />
+            </svg>
+            <svg viewBox="0 0 24 24" class="ico ico-mic-off">
+              <path d="M9 9V6a3 3 0 0 1 5.9-.7M15 12.5V12M5.5 11.5a6.5 6.5 0 0 0 10.2 5.3M9.2 14.6A3 3 0 0 0 15 13.5M12 18v3M8.5 21h7M3 3l18 18" />
+            </svg>
+            <span class="dock-label">Mic</span>
+          </button>
+
+          <button class="dock-btn dock-ptt" id="btn-ptt" title="Push to talk">
+            <svg viewBox="0 0 24 24" class="ico">
+              <path d="M12 3v9M8 7l4-4 4 4" />
+              <path d="M5 13a7 7 0 0 0 14 0" />
+            </svg>
+            <span class="dock-label">Hold</span>
+          </button>
+
+          <button class="dock-btn" id="btn-deafen" aria-pressed="false" title="Deafen (D)">
+            <svg viewBox="0 0 24 24" class="ico ico-ear-on">
+              <path d="M11 5 6 9H3v6h3l5 4V5z" />
+              <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
+            </svg>
+            <svg viewBox="0 0 24 24" class="ico ico-ear-off">
+              <path d="M11 5 6 9H3v6h3l5 4V5z" />
+              <path d="M16 9.5l5 5M21 9.5l-5 5" />
+            </svg>
+            <span class="dock-label">Sound</span>
+          </button>
+
+          <button class="dock-btn dock-btn-danger" id="btn-leave" title="Leave channel" disabled>
+            <svg viewBox="0 0 24 24" class="ico">
+              <path d="M15 12H4M8 8l-4 4 4 4M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
+            </svg>
+            <span class="dock-label">Leave</span>
+          </button>
+        </div>
+
+        <div class="dock-stats" id="dock-stats">
+          <span class="pill" id="stat-ping" title="Signalling round-trip">— ms</span>
+          <span class="pill" id="stat-mode">Voice activity</span>
+          <span class="pill pill-lock" id="stat-lock" hidden title="Screen stays awake">awake</span>
+        </div>
+      </footer>
+    </main>
+
+    <!-- ───────────────────────── Settings ───────────────────────── -->
+    <div class="sheet-backdrop" id="settings-backdrop" hidden></div>
+    <section class="sheet glass" id="settings" data-sheen hidden aria-label="Settings">
+      <header class="sheet-head">
+        <h2>Settings</h2>
+        <button class="icon-btn" id="close-settings" aria-label="Close settings">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      </header>
+
+      <nav class="tabs" id="settings-tabs">
+        <button class="tab is-active" data-tab="audio">Audio</button>
+        <button class="tab" data-tab="voice">Voice</button>
+        <button class="tab" data-tab="app">App</button>
+      </nav>
+
+      <div class="sheet-scroll">
+        <!-- Audio -->
+        <div class="tab-panel is-active" data-panel="audio">
+          <div class="field">
+            <span class="field-label">Microphone</span>
+            <div class="select-wrap">
+              <select id="sel-input" class="input"></select>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Input level</span>
+            <span class="meter meter-lg" id="settings-meter"><i></i></span>
+            <p class="hint" id="input-hint">Speak — the bar should move.</p>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Microphone boost <em id="val-gain">100%</em></span>
+            <input id="rng-gain" class="range" type="range" min="0" max="300" step="5" value="100" />
+          </div>
+
+          <div class="field">
+            <span class="field-label">Speaker / output</span>
+            <div class="select-wrap">
+              <select id="sel-output" class="input"></select>
+            </div>
+            <p class="hint" id="output-hint"></p>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Output volume <em id="val-volume">100%</em></span>
+            <input id="rng-volume" class="range" type="range" min="0" max="200" step="5" value="100" />
+          </div>
+
+          <button class="btn btn-ghost btn-block" id="btn-test-output">
+            <span>Play test tone</span>
+          </button>
+
+          <h3 class="group-label">Processing</h3>
+          <label class="switch-row">
+            <span><strong>Echo cancellation</strong><small>Stops speaker bleed into the mic</small></span>
+            <input type="checkbox" id="chk-aec" class="switch" checked />
+          </label>
+          <label class="switch-row">
+            <span><strong>Noise suppression</strong><small>Filters fans, keyboards, hum</small></span>
+            <input type="checkbox" id="chk-ns" class="switch" checked />
+          </label>
+          <label class="switch-row">
+            <span><strong>Auto gain control</strong><small>Evens out loud and quiet voices</small></span>
+            <input type="checkbox" id="chk-agc" class="switch" checked />
+          </label>
+        </div>
+
+        <!-- Voice -->
+        <div class="tab-panel" data-panel="voice">
+          <div class="field">
+            <span class="field-label">Transmission</span>
+            <div class="segmented" id="seg-mode" role="radiogroup">
+              <button data-mode="open" class="is-active">Voice activity</button>
+              <button data-mode="ptt">Push to talk</button>
+            </div>
+          </div>
+
+          <div class="field" id="field-threshold">
+            <span class="field-label">Activation threshold <em id="val-threshold">-45 dB</em></span>
+            <input id="rng-threshold" class="range" type="range" min="-80" max="-10" step="1" value="-45" />
+            <span class="meter meter-lg meter-threshold" id="threshold-meter"><i></i><b></b></span>
+            <p class="hint">Drag until the marker sits just above your room noise.</p>
+          </div>
+
+          <div class="field" id="field-ptt">
+            <span class="field-label">Push-to-talk key</span>
+            <button class="btn btn-ghost btn-block" id="btn-bind-ptt">
+              <span id="ptt-key-label">Space</span>
+            </button>
+            <p class="hint">On phones, hold the button in the dock.</p>
+          </div>
+
+          <div class="field" id="field-latch">
+            <span class="field-label">Double-tap to lock <em id="val-latch">400 ms</em></span>
+            <input id="rng-latch" class="range" type="range" min="0" max="1000" step="50" value="400" />
+            <p class="hint">
+              Tap the key twice inside this window and the microphone stays open
+              hands-free. One more tap releases it. Set to 0 to switch this off.
+            </p>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Voice hold <em id="val-hold">300 ms</em></span>
+            <input id="rng-hold" class="range" type="range" min="0" max="2000" step="50" value="300" />
+            <p class="hint">Keeps the channel open briefly between words.</p>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Audio quality</span>
+            <div class="segmented" id="seg-quality" role="radiogroup">
+              <button data-q="low">Low</button>
+              <button data-q="normal" class="is-active">Normal</button>
+              <button data-q="high">High</button>
+            </div>
+            <p class="hint" id="quality-hint">48 kbps mono Opus — the LAN sweet spot.</p>
+          </div>
+
+          <h3 class="group-label">Feedback</h3>
+          <label class="switch-row">
+            <span><strong>Join / leave sounds</strong><small>Soft chime when someone moves</small></span>
+            <input type="checkbox" id="chk-sounds" class="switch" checked />
+          </label>
+          <label class="switch-row">
+            <span
+              ><strong>Chat notifications</strong
+              ><small>System notification when a message arrives and you are away</small></span
+            >
+            <input type="checkbox" id="chk-notifications" class="switch" checked />
+          </label>
+          <p class="hint" id="notification-hint"></p>
+        </div>
+
+        <!-- App -->
+        <div class="tab-panel" data-panel="app">
+          <div class="field">
+            <span class="field-label">Display name</span>
+            <input id="set-name" class="input" type="text" maxlength="24" />
+          </div>
+
+          <div class="field">
+            <span class="field-label">Appearance</span>
+            <div class="segmented" id="seg-theme" role="radiogroup">
+              <button data-theme="light">Light</button>
+              <button data-theme="system" class="is-active">System</button>
+              <button data-theme="dark">Dark</button>
+            </div>
+          </div>
+
+          <h3 class="group-label">Mobile behaviour</h3>
+          <label class="switch-row">
+            <span><strong>Keep screen awake</strong><small>Screen Wake Lock while you are in a channel</small></span>
+            <input type="checkbox" id="chk-wakelock" class="switch" checked />
+          </label>
+          <label class="switch-row">
+            <span
+              ><strong>Keep audio alive in background</strong
+              ><small>Stay connected with the screen off or app minimised</small></span
+            >
+            <input type="checkbox" id="chk-background" class="switch" checked />
+          </label>
+          <p class="hint" id="background-hint"></p>
+          <label class="switch-row">
+            <span
+              ><strong>Fullscreen</strong><small>Hide the browser bars while you are in a channel</small></span
+            >
+            <input type="checkbox" id="chk-fullscreen" class="switch" checked />
+          </label>
+
+          <h3 class="group-label">Advanced</h3>
+          <label class="switch-row">
+            <span
+              ><strong>Route audio through mixer</strong
+              ><small>Needed for output device choice and background playback</small></span
+            >
+            <input type="checkbox" id="chk-mixer" class="switch" checked />
+          </label>
+
+          <div class="field">
+            <span class="field-label">Connection</span>
+            <div class="kv" id="diag"></div>
+          </div>
+
+          <button class="btn btn-ghost btn-block" id="btn-install" hidden>
+            <span>Install app on this device</span>
+          </button>
+          <a class="btn btn-ghost btn-block" href="/ca.crt" download>
+            <span>Download CA certificate</span>
+          </a>
+          <p class="hint">
+            Install the certificate once per device so the app can be added to the home screen.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- New channel dialog -->
+    <div class="sheet-backdrop" id="channel-backdrop" hidden></div>
+    <section class="sheet sheet-sm glass" id="channel-dialog" data-sheen hidden>
+      <header class="sheet-head">
+        <h2>New channel</h2>
+        <button class="icon-btn" id="close-channel-dialog" aria-label="Close">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      </header>
+      <form class="sheet-scroll" id="channel-form">
+        <label class="field">
+          <span class="field-label">Name</span>
+          <input id="channel-name" class="input" maxlength="24" required placeholder="Design sync" />
+        </label>
+        <label class="field">
+          <span class="field-label">Topic <em>optional</em></span>
+          <input id="channel-desc" class="input" maxlength="60" placeholder="Weekly catch-up" />
+        </label>
+        <label class="field">
+          <span class="field-label">Password <em>optional</em></span>
+          <input
+            id="channel-pass"
+            class="input"
+            type="password"
+            maxlength="64"
+            placeholder="Leave empty for an open channel"
+            autocomplete="new-password"
+          />
+          <p class="hint">Anyone joining will be asked for this.</p>
+        </label>
+        <button class="btn btn-primary btn-block" type="submit"><span>Create channel</span></button>
+      </form>
+    </section>
+
+    <!-- Locked channel prompt -->
+    <div class="sheet-backdrop" id="join-backdrop" hidden></div>
+    <section class="sheet sheet-sm glass" id="join-dialog" data-sheen hidden>
+      <header class="sheet-head">
+        <h2>Locked channel</h2>
+        <button class="icon-btn" id="close-join-dialog" aria-label="Close">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+      </header>
+      <form class="sheet-scroll" id="join-form">
+        <p class="hint" style="margin-bottom: 18px">
+          <strong id="join-channel-name">This channel</strong> needs a password.
+        </p>
+        <label class="field">
+          <span class="field-label">Password</span>
+          <input
+            id="join-pass"
+            class="input"
+            type="password"
+            maxlength="64"
+            autocomplete="off"
+            placeholder="••••••••"
+          />
+        </label>
+        <p class="gate-hint" id="join-error" role="alert"></p>
+        <button class="btn btn-primary btn-block" type="submit"><span>Join channel</span></button>
+      </form>
+    </section>
+
+    <!-- Toasts -->
+    <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+    <!-- Audio bus: one always-playing element carries every remote voice.
+         Keeping a single element playing is what lets Android keep the tab
+         alive with the screen off, and gives us one sink for setSinkId(). -->
+    <audio id="audio-bus" autoplay playsinline></audio>
+    <div id="peer-audio" hidden></div>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>
