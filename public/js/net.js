@@ -18,9 +18,15 @@ export class Net extends EventTarget {
     this.retryTimer = null;
   }
 
+  /**
+   * Built from the document base rather than the origin, so the socket lands
+   * on the right path when the app is mounted under a sub-path such as
+   * https://host/VoiceMa/ — there, this resolves to wss://host/VoiceMa/ws.
+   */
   get url() {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    return `${proto}://${location.host}/ws`;
+    const base = new URL('ws', document.baseURI);
+    base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+    return base.href;
   }
 
   connect(credentials) {

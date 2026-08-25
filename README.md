@@ -20,6 +20,16 @@ through the server.
 
 ---
 
+> **Deploying to a server?** See **[DEPLOY.md](DEPLOY.md)** for putting this on
+> Ubuntu/Debian as a systemd service behind nginx at a sub-path such as
+> `https://192.168.90.5/VoiceMa`, with a one-command interactive installer:
+>
+> ```bash
+> git clone https://github.com/RmaNMetaverse/VoiceMa.git && cd VoiceMa && sudo bash install.sh
+> ```
+
+---
+
 ## Quick start
 
 ```bash
@@ -230,6 +240,8 @@ mono, with in-band FEC for resilience. Normal is right for almost every LAN.
   "serverName": "VoiceMa",
   "httpsPort": 8443,
   "httpRedirectPort": 8080,
+  "bindAddress": "0.0.0.0",
+  "basePath": "",
   "password": "",
   "maxUsersPerChannel": 12,
   "allowUserChannels": true,
@@ -243,8 +255,13 @@ mono, with in-band FEC for resilience. Normal is right for almost every LAN.
 Channels listed here are permanent and cannot be deleted from the UI. Channels
 people create at runtime live in `data/channels.json`.
 
+`basePath` mounts the app under a sub-path (`"/VoiceMa"`) instead of the root —
+see [DEPLOY.md](DEPLOY.md). `bindAddress` restricts which interface it listens
+on; set it to `127.0.0.1` when a reverse proxy sits in front.
+
 Environment overrides: `VOICEMA_NAME`, `VOICEMA_PORT`, `VOICEMA_HTTP_PORT`,
-`VOICEMA_PASSWORD`, `VOICEMA_HOSTS`.
+`VOICEMA_BIND`, `VOICEMA_BASE_PATH`, `VOICEMA_PASSWORD`, `VOICEMA_HOSTS`,
+`VOICEMA_HTTP_ONLY`.
 
 Setting a `password` makes the sign-in screen ask for it. It is a shared-secret
 speed bump for a trusted office LAN, not real authentication — there are no user

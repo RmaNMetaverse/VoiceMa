@@ -9,11 +9,23 @@ const DEFAULTS = {
   serverName: 'VoiceMa',
   httpsPort: 8443,
   httpRedirectPort: 8080,
+  bindAddress: '0.0.0.0',
+  basePath: '',
   password: '',
   maxUsersPerChannel: 12,
   allowUserChannels: true,
   channels: [{ id: 'general', name: 'General', description: 'Everyone lands here' }]
 };
+
+/**
+ * Normalises a mount point to either '' (root) or '/Something' — leading
+ * slash, no trailing slash. Everything else in the server builds on that shape.
+ */
+export function normalizeBasePath(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw === '/') return '';
+  return ('/' + raw.replace(/^\/+|\/+$/g, '')).replace(/\/{2,}/g, '/');
+}
 
 function readJSON(file) {
   try {
@@ -35,6 +47,8 @@ export const config = {
   httpRedirectPort: Number(
     process.env.VOICEMA_HTTP_PORT ?? fileConfig.httpRedirectPort ?? DEFAULTS.httpRedirectPort
   ),
+  bindAddress: process.env.VOICEMA_BIND ?? fileConfig.bindAddress ?? DEFAULTS.bindAddress,
+  basePath: normalizeBasePath(process.env.VOICEMA_BASE_PATH ?? fileConfig.basePath ?? ''),
   password: process.env.VOICEMA_PASSWORD ?? fileConfig.password ?? ''
 };
 

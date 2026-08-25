@@ -9,11 +9,11 @@
     <title>VoiceMa</title>
     <meta name="description" content="Self-hosted LAN voice chat" />
 
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
-    <link rel="icon" href="/icons/icon-32.png" sizes="32x32" />
-    <link rel="apple-touch-icon" href="/icons/icon-180.png" />
-    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="icons/icon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="icons/icon-180.png" />
+    <link rel="stylesheet" href="css/style.css" />
 
     <meta name="theme-color" content="#f4f4fb" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b0b12" media="(prefers-color-scheme: dark)" />
@@ -37,7 +37,7 @@
     <section id="gate" class="gate">
       <div class="glass gate-card" data-sheen>
         <div class="gate-mark">
-          <img src="/icons/icon.svg" alt="" width="72" height="72" />
+          <img src="icons/icon.svg" alt="" width="72" height="72" />
         </div>
         <h1 class="gate-title" id="gate-server">VoiceMa</h1>
         <p class="gate-sub">Voice chat on your local network</p>
@@ -74,7 +74,7 @@
 
         <p class="gate-foot">
           Microphone access is requested when you join a channel.
-          <a href="/ca.crt" download>Install CA certificate</a>
+          <a href="ca.crt" download>Install CA certificate</a>
         </p>
       </div>
     </section>
@@ -85,7 +85,7 @@
       <aside class="pane pane-channels glass" id="pane-channels" data-sheen>
         <header class="pane-head">
           <div class="brand">
-            <img src="/icons/icon.svg" alt="" width="30" height="30" class="brand-mark" />
+            <img src="icons/icon.svg" alt="" width="30" height="30" class="brand-mark" />
             <div class="brand-text">
               <strong id="server-name">VoiceMa</strong>
               <small id="conn-status" class="status status-connecting">connecting…</small>
@@ -424,7 +424,7 @@
           <button class="btn btn-ghost btn-block" id="btn-install" hidden>
             <span>Install app on this device</span>
           </button>
-          <a class="btn btn-ghost btn-block" href="/ca.crt" download>
+          <a class="btn btn-ghost btn-block" href="ca.crt" download>
             <span>Download CA certificate</span>
           </a>
           <p class="hint">
@@ -506,6 +506,6 @@
     <audio id="audio-bus" autoplay playsinline></audio>
     <div id="peer-audio" hidden></div>
 
-    <script type="module" src="/js/app.js"></script>
+    <script type="module" src="js/app.js"></script>
   </body>
 </html>

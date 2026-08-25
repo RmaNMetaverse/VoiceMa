@@ -26,7 +26,27 @@ if (!HTTP_ONLY && (!fs.existsSync(KEY_FILE) || !fs.existsSync(CRT_FILE))) {
   process.exit(1);
 }
 
+const BASE = config.basePath;
+
 const handler = async (req, res) => {
+    // Everything below works in app-relative terms; the mount point is peeled
+    // off here so a reverse proxy can pass the full path through untouched.
+    if (BASE) {
+      const raw = req.url ?? '/';
+      if (raw === BASE) {
+        // Without the trailing slash every relative URL would resolve one
+        // level too high, so send the browser to the canonical form.
+        res.writeHead(301, { Location: BASE + '/' }).end();
+        return;
+      }
+      if (raw.startsWith(BASE + '/') || raw.startsWith(BASE + '?')) {
+        req.url = raw.slice(BASE.length) || '/';
+      } else {
+        res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
+        return;
+      }
+    }
+
     const url = (req.url ?? '/').split('?')[0];
 
     if (url === '/ca.crt' || url === '/voicema-ca.crt') return serveCA(req, res);
@@ -77,29 +97,40 @@ const PORT =
     ? config.httpRedirectPort || config.httpsPort
     : config.httpsPort;
 
-server.listen(PORT, '0.0.0.0', () => {
+// Bound to loopback means something else is terminating TLS in front of us.
+const BEHIND_PROXY = ['127.0.0.1', '::1', 'localhost'].includes(config.bindAddress);
+
+server.listen(PORT, config.bindAddress, () => {
   const lan = lanAddresses();
   const line = '─'.repeat(58);
   console.log(`\n\x1b[35m${line}\x1b[0m`);
   console.log(`  \x1b[1m${config.serverName}\x1b[0m — LAN voice chat`);
   console.log(`\x1b[35m${line}\x1b[0m`);
-  console.log(`  Local      ${scheme}://localhost:${PORT}`);
-  for (const { name, address } of lan) {
-    console.log(
-      `  ${name.padEnd(10).slice(0, 10)} \x1b[36m${scheme}://${address}:${PORT}\x1b[0m`
-    );
-  }
 
-  if (HTTP_ONLY) {
-    console.log('\n  \x1b[33mHTTP mode — microphone works on localhost only.\x1b[0m');
-    console.log('  Phones and other machines need HTTPS: restart without --http.');
+  if (BEHIND_PROXY) {
+    console.log(`  Upstream   ${scheme}://${config.bindAddress}:${PORT}${BASE}/`);
+    console.log('\n  \x1b[36mBehind a reverse proxy.\x1b[0m Reach it on the public address');
+    console.log('  the proxy serves; TLS and the LAN address belong to that layer.');
   } else {
-    console.log('\n  Trust the CA once per device:');
-    for (const { address } of lan) {
-      console.log(`             https://${address}:${PORT}/ca.crt`);
+    console.log(`  Local      ${scheme}://localhost:${PORT}${BASE}/`);
+    for (const { name, address } of lan) {
+      console.log(
+        `  ${name.padEnd(10).slice(0, 10)} \x1b[36m${scheme}://${address}:${PORT}${BASE}/\x1b[0m`
+      );
+    }
+
+    if (HTTP_ONLY) {
+      console.log('\n  \x1b[33mHTTP mode — microphone works on localhost only.\x1b[0m');
+      console.log('  Phones and other machines need HTTPS: restart without --http.');
+    } else {
+      console.log('\n  Trust the CA once per device:');
+      for (const { address } of lan) {
+        console.log(`             https://${address}:${PORT}${BASE}/ca.crt`);
+      }
     }
   }
 
+  if (BASE) console.log(`\n  Mounted at ${BASE}/`);
   if (config.password) console.log('\n  \x1b[33mPassword protection is ON\x1b[0m');
   console.log(`\n  Channels   ${hub.channels.map((c) => c.name).join(', ')}`);
   console.log(`\x1b[35m${line}\x1b[0m\n`);
@@ -123,7 +154,7 @@ if (!HTTP_ONLY && config.httpRedirectPort > 0) {
   redirect.on('error', (err) => {
     console.warn(`http redirect disabled (${err.code})`);
   });
-  redirect.listen(config.httpRedirectPort, '0.0.0.0');
+  redirect.listen(config.httpRedirectPort, config.bindAddress);
 }
 
 for (const sig of ['SIGINT', 'SIGTERM']) {

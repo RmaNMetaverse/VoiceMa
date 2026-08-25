@@ -118,7 +118,7 @@ function buildGate() {
 
   $('gate-name').value = settings.name || '';
 
-  fetch('/api/info')
+  fetch(new URL('api/info', document.baseURI))
     .then((r) => r.json())
     .then((info) => {
       state.server = { ...state.server, ...info };
@@ -728,13 +728,13 @@ async function notifyChat(message) {
   const channel = state.channels.find((c) => c.id === message.channel);
   const options = {
     body: message.text,
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    icon: new URL('icons/icon-192.png', document.baseURI).pathname,
+    badge: new URL('icons/icon-192.png', document.baseURI).pathname,
     // One notification per channel, replaced as messages arrive.
     tag: `voicema-chat-${message.channel}`,
     renotify: true,
     timestamp: message.ts,
-    data: { url: `/?channel=${message.channel}` }
+    data: { url: new URL(`./?channel=${message.channel}`, document.baseURI).href }
   };
   const title = `${message.name}${channel ? ' · ' + channel.name : ''}`;
 
@@ -1208,7 +1208,7 @@ function wireChrome() {
 function wirePWA() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker
-      .register('/sw.js')
+      .register(new URL('sw.js', document.baseURI), { scope: new URL('./', document.baseURI).pathname })
       .then((reg) => {
         // Kept so chat notifications can go through the worker, which is what
         // lets them appear on Android with the screen off.

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { ROOT } from './config.js';
+import { ROOT, config } from './config.js';
 
 const PUBLIC_DIR = path.join(ROOT, 'public');
 
@@ -43,6 +43,42 @@ function resolveSafe(urlPath) {
   return abs;
 }
 
+/**
+ * Two files depend on where the app is mounted, so they are rewritten as they
+ * are served rather than being duplicated on disk:
+ *
+ *   index.html          gets a <base> tag, which every relative URL in the page
+ *                       (and every relative fetch) then resolves against
+ *   manifest.webmanifest has its root-absolute paths re-pointed at the mount
+ *
+ * Everything else is static bytes and needs no rewriting.
+ */
+function rewriteForBasePath(file, body) {
+  const base = config.basePath;
+  const name = path.basename(file);
+
+  if (name === 'index.html') {
+    return body.replace('<head>', `<head>\n    <base href="${base}/" />`);
+  }
+
+  if (name === 'manifest.webmanifest') {
+    const manifest = JSON.parse(body);
+    const point = (p) => (typeof p === 'string' && p.startsWith('/') ? base + p : p);
+    manifest.id = base + '/';
+    manifest.scope = base + '/';
+    manifest.start_url = base + '/?source=pwa';
+    manifest.icons = (manifest.icons ?? []).map((i) => ({ ...i, src: point(i.src) }));
+    manifest.shortcuts = (manifest.shortcuts ?? []).map((s) => ({
+      ...s,
+      url: base + '/?channel=general',
+      icons: (s.icons ?? []).map((i) => ({ ...i, src: point(i.src) }))
+    }));
+    return JSON.stringify(manifest, null, 2);
+  }
+
+  return null;
+}
+
 export async function serveStatic(req, res) {
   let file = resolveSafe(req.url === '/' ? '/index.html' : req.url);
   if (!file) {
@@ -62,7 +98,14 @@ export async function serveStatic(req, res) {
   }
 
   const ext = path.extname(file).toLowerCase();
-  const etag = await etagFor(file, stat);
+  const name = path.basename(file);
+  const needsRewrite = name === 'index.html' || name === 'manifest.webmanifest';
+
+  // The mount point is part of what these two files say, so it is part of
+  // their identity for caching purposes.
+  const etag = needsRewrite
+    ? (await etagFor(file, stat)).replace(/"$/, `-${Buffer.from(config.basePath).toString('hex')}"`)
+    : await etagFor(file, stat);
 
   if (req.headers['if-none-match'] === etag) {
     res.writeHead(304, { ETag: etag }).end();
@@ -72,22 +115,33 @@ export async function serveStatic(req, res) {
   // The shell must revalidate so a redeploy reaches clients; hashed-ish assets
   // (icons) can sit in cache for a day.
   const cacheControl =
-    ext === '.html' || ext === '.webmanifest' || file.endsWith('sw.js')
+    ext === '.html' || ext === '.webmanifest' || name === 'sw.js'
       ? 'no-cache'
       : ext === '.png' || ext === '.svg' || ext === '.woff2'
         ? 'public, max-age=86400'
         : 'no-cache';
 
-  res.writeHead(200, {
+  const headers = {
     'Content-Type': MIME[ext] ?? 'application/octet-stream',
-    'Content-Length': stat.size,
     'Cache-Control': cacheControl,
     ETag: etag,
     // Mic + wake lock are same-origin only; nothing here is embeddable.
     'Permissions-Policy': 'microphone=(self), screen-wake-lock=(self)',
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'same-origin'
-  });
+  };
+
+  if (needsRewrite) {
+    const body = rewriteForBasePath(file, await fsp.readFile(file, 'utf8'));
+    const buffer = Buffer.from(body, 'utf8');
+    headers['Content-Length'] = buffer.length;
+    res.writeHead(200, headers);
+    res.end(req.method === 'HEAD' ? undefined : buffer);
+    return true;
+  }
+
+  headers['Content-Length'] = stat.size;
+  res.writeHead(200, headers);
 
   if (req.method === 'HEAD') {
     res.end();

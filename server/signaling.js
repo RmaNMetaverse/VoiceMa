@@ -55,7 +55,13 @@ export class Hub {
     this.channels = this.loadChannels();
     this.chat = new Map(); // channelId -> message[]
 
-    this.wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_MSG_BYTES });
+    // The upgrade request arrives with the mount point still attached, since
+    // ws matches on the raw URL rather than anything the HTTP handler rewrote.
+    this.wss = new WebSocketServer({
+      server,
+      path: `${config.basePath}/ws`,
+      maxPayload: MAX_MSG_BYTES
+    });
     this.wss.on('connection', (ws, req) => this.onConnection(ws, req));
 
     // ws re-emits the HTTP server's errors here. Without a listener, a plain
