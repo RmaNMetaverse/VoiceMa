@@ -1,0 +1,4 @@
+cd /tmp && rm -rf vm && git clone --depth 1 https://github.com/RmaNMetaverse/VoiceMa.git vm && sudo tar -C vm --exclude=.git --exclude=node_modules --exclude=./certs --exclude=./data --exclude=./config.json -cf - . | sudo tar -C /opt/voicema -xf - && sudo systemctl restart voicema && systemctl status voicema --no-pager
+
+
+curl -sk https://192.168.90.5/VoiceMa/sw.js | grep VERSION
