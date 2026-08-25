@@ -13,7 +13,8 @@
     "icons": "node scripts/gen-icons.js",
     "setup": "node scripts/gen-cert.js && node scripts/gen-icons.js",
     "test": "node scripts/test-signaling.js",
-    "dev": "node server/index.js --http"
+    "dev": "node server/index.js --http",
+    "test:basepath": "node scripts/test-basepath.js"
   },
   "dependencies": {
     "ws": "^8.18.0",
