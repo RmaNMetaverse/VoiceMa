@@ -101,11 +101,14 @@ const PORT =
 const BEHIND_PROXY = ['127.0.0.1', '::1', 'localhost'].includes(config.bindAddress);
 
 server.listen(PORT, config.bindAddress, () => {
-  const lan = lanAddresses();
   const line = '─'.repeat(58);
   console.log(`\n\x1b[35m${line}\x1b[0m`);
   console.log(`  \x1b[1m${config.serverName}\x1b[0m — LAN voice chat`);
   console.log(`\x1b[35m${line}\x1b[0m`);
+
+  // Only needed for the standalone banner; behind a proxy the addresses that
+  // matter belong to the proxy, not to us.
+  const lan = BEHIND_PROXY ? [] : lanAddresses();
 
   if (BEHIND_PROXY) {
     console.log(`  Upstream   ${scheme}://${config.bindAddress}:${PORT}${BASE}/`);

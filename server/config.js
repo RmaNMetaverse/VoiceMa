@@ -52,10 +52,25 @@ export const config = {
   password: process.env.VOICEMA_PASSWORD ?? fileConfig.password ?? ''
 };
 
-/** Every non-internal IPv4 this host answers on — printed at boot so people can find it. */
+/**
+ * Every non-internal IPv4 this host answers on — printed at boot so people can
+ * find the server.
+ *
+ * Enumerating interfaces needs an AF_NETLINK socket on Linux, which a
+ * sandboxed service may be forbidden from opening. That must never be fatal:
+ * this is a convenience banner, not a dependency, so a failure degrades to an
+ * empty list.
+ */
 export function lanAddresses() {
   const out = [];
-  for (const [name, list] of Object.entries(os.networkInterfaces())) {
+  let interfaces;
+  try {
+    interfaces = os.networkInterfaces();
+  } catch (err) {
+    console.warn(`config: could not list network interfaces (${err.code ?? err.message})`);
+    return out;
+  }
+  for (const [name, list] of Object.entries(interfaces)) {
     for (const ni of list ?? []) {
       if (ni.family === 'IPv4' && !ni.internal) out.push({ name, address: ni.address });
     }

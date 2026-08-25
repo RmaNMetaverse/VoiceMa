@@ -398,7 +398,9 @@ ProtectHome=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
-RestrictAddressFamilies=AF_INET AF_INET6
+# AF_NETLINK is required: Node uses it to enumerate network interfaces, and
+# without it os.networkInterfaces() throws EAFNOSUPPORT at startup.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 ReadWritePaths=${APP_DIR}/data
 
 [Install]
@@ -430,6 +432,21 @@ step "Configuring nginx"
 
 mkdir -p "$NGINX_APPS_DIR"
 
+# HTTP/2 syntax changed in nginx 1.25.1: before that it is a listen-flag,
+# after that a standalone directive. Ubuntu 22.04 ships 1.18, so this matters.
+NGINX_VERSION="$(nginx -v 2>&1 | sed 's|.*/||; s/[^0-9.].*//')"
+if [ -n "$NGINX_VERSION" ] && \
+   [ "$(printf '%s\n1.25.1\n' "$NGINX_VERSION" | sort -V | head -n1)" = "1.25.1" ]; then
+  LISTEN_SSL="listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    http2 on;"
+  info "nginx ${NGINX_VERSION} — using the modern 'http2 on;' directive"
+else
+  LISTEN_SSL="listen 443 ssl http2 default_server;
+    listen [::]:443 ssl http2 default_server;"
+  info "nginx ${NGINX_VERSION:-<1.25} — using the listen-flag form of http2"
+fi
+
 # WebSocket upgrade mapping belongs in the http context, once for the machine.
 if [ ! -f /etc/nginx/conf.d/websocket-upgrade.conf ]; then
   cat > /etc/nginx/conf.d/websocket-upgrade.conf <<'EOF'
@@ -459,9 +476,7 @@ server {
 }
 
 server {
-    listen 443 ssl default_server;
-    listen [::]:443 ssl default_server;
-    http2 on;
+    ${LISTEN_SSL}
     server_name _;
 
     ssl_certificate     ${APP_DIR}/certs/server.crt;
