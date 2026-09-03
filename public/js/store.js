@@ -1,6 +1,8 @@
 const KEY = 'voicema.settings.v1';
+const SETTINGS_VERSION = 2;
 
 const DEFAULTS = {
+  settingsVersion: SETTINGS_VERSION,
   name: '',
   hue: null,
   theme: 'system',
@@ -23,7 +25,9 @@ const DEFAULTS = {
 
   sounds: true,
   notifications: true,
-  wakeLock: true,
+  // Keeping a phone display lit is by far the largest avoidable power cost.
+  // Users who really need it can opt in from Settings -> App.
+  wakeLock: false,
   background: true,
   fullscreen: true,
   mixer: true,
@@ -37,12 +41,24 @@ function read() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...DEFAULTS };
     const saved = JSON.parse(raw);
-    return {
+    const merged = {
       ...DEFAULTS,
       ...saved,
       peerVolumes: saved.peerVolumes ?? {},
       channelPasswords: saved.channelPasswords ?? {}
     };
+    // v1 enabled the screen wake lock by default. Replace that old implicit
+    // value once while preserving every other preference.
+    if ((saved.settingsVersion ?? 1) < SETTINGS_VERSION) {
+      merged.settingsVersion = SETTINGS_VERSION;
+      merged.wakeLock = false;
+      try {
+        localStorage.setItem(KEY, JSON.stringify(merged));
+      } catch {
+        /* private mode / quota */
+      }
+    }
+    return merged;
   } catch {
     return { ...DEFAULTS };
   }
@@ -90,6 +106,6 @@ export function channelPassword(id, value) {
 
 export const QUALITY = {
   low: { bitrate: 24000, dtx: true, label: '24 kbps mono — tight networks' },
-  normal: { bitrate: 48000, dtx: false, label: '48 kbps mono Opus — the LAN sweet spot' },
-  high: { bitrate: 96000, dtx: false, label: '96 kbps — richest, still tiny on a LAN' }
+  normal: { bitrate: 48000, dtx: true, label: '48 kbps mono Opus — balanced and efficient' },
+  high: { bitrate: 96000, dtx: true, label: '96 kbps — richest voice quality' }
 };

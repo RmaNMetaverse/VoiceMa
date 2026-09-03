@@ -217,6 +217,9 @@ export class Mesh extends EventTarget {
   }
 
   async pollStats() {
+    // Diagnostics are visual-only. Avoid a getStats walk for every peer while
+    // the phone is locked/backgrounded, or while there are no connections.
+    if (!this.peers.size || document.visibilityState !== 'visible') return;
     for (const [id, entry] of this.peers) {
       try {
         const report = await entry.pc.getStats();

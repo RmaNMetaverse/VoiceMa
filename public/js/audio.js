@@ -37,6 +37,8 @@ export class AudioEngine extends EventTarget {
     this.started = false;
     this.inputLabel = '';
     this.outputLabel = '';
+    this.sessionActive = false;
+    this.backgroundEnabled = false;
 
     this.supportsSinkId = typeof HTMLMediaElement !== 'undefined' &&
       'setSinkId' in HTMLMediaElement.prototype;
@@ -66,19 +68,8 @@ export class AudioEngine extends EventTarget {
     this.mixDest = this.ctx.createMediaStreamDestination();
     this.master.connect(this.mixDest);
 
-    // An inaudible tone keeps the mixed stream non-empty so the bus element
-    // never stalls — a stalled element is a suspended tab on mobile.
-    const osc = this.ctx.createOscillator();
-    const g = this.ctx.createGain();
-    osc.frequency.value = 30;
-    g.gain.value = 0.0006;
-    osc.connect(g).connect(this.mixDest);
-    osc.start();
-    this.keepAlive = osc;
-
     this.bus.srcObject = this.mixDest.stream;
     this.bus.volume = 1;
-    await this.playBus();
     await this.applyOutputDevice(settings.outputId).catch(() => {});
 
     return this.ctx;
@@ -92,6 +83,72 @@ export class AudioEngine extends EventTarget {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Unlocks playback during the sign-in gesture, then returns the audio
+   * hardware to idle. The lobby must not hold a silent audio session open.
+   */
+  async primePlayback() {
+    await this.ensureContext();
+    const played = await this.playBus();
+    // A very fast deep-link join may have activated the session while play()
+    // was pending. Do not let the primer suspend a newly joined call.
+    if (this.sessionActive) return played;
+    this.bus.pause();
+    await this.ctx.suspend().catch(() => {});
+    return played;
+  }
+
+  /** Starts/stops the playback session with the channel lifecycle. */
+  async setSessionActive(active, background = this.backgroundEnabled) {
+    this.sessionActive = active;
+    this.backgroundEnabled = !!background;
+
+    if (!active) {
+      this.stopKeepAlive();
+      this.bus.pause();
+      await this.ctx?.suspend().catch(() => {});
+      return;
+    }
+
+    await this.ensureContext();
+    this.syncKeepAlive();
+    await this.playBus();
+  }
+
+  setBackgroundEnabled(enabled) {
+    this.backgroundEnabled = !!enabled;
+    this.syncKeepAlive();
+  }
+
+  syncKeepAlive() {
+    if (this.sessionActive && this.backgroundEnabled) this.startKeepAlive();
+    else this.stopKeepAlive();
+  }
+
+  /** A tiny sub-audible signal prevents mobile browsers stalling the bus. */
+  startKeepAlive() {
+    if (!this.ctx || this.keepAlive) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.frequency.value = 25;
+    gain.gain.value = 0.00003;
+    osc.connect(gain).connect(this.mixDest);
+    osc.start();
+    this.keepAlive = { osc, gain };
+  }
+
+  stopKeepAlive() {
+    if (!this.keepAlive) return;
+    try {
+      this.keepAlive.osc.stop();
+      this.keepAlive.osc.disconnect();
+      this.keepAlive.gain.disconnect();
+    } catch {
+      /* already stopped */
+    }
+    this.keepAlive = null;
   }
 
   /** Opens the microphone and wires the capture chain. Needs a user gesture. */
@@ -243,8 +300,9 @@ export class AudioEngine extends EventTarget {
       p.get('hold').value = settings.hold;
     }
 
-    // Hard-mute the capture device too, so the OS mic indicator is honest.
-    const hardMuted = this.mode === 'muted';
+    // Disable capture for mute and while PTT is released. This gives mobile
+    // browsers a chance to power down microphone DSP between utterances.
+    const hardMuted = mode === 0;
     this.stream?.getAudioTracks().forEach((t) => {
       t.enabled = !hardMuted;
     });
@@ -309,7 +367,8 @@ export class AudioEngine extends EventTarget {
 
     const gain = this.ctx.createGain();
     const analyser = this.ctx.createAnalyser();
-    analyser.fftSize = 512;
+    // This is a coarse loudness indicator, not a spectral display.
+    analyser.fftSize = 128;
     analyser.smoothingTimeConstant = 0.72;
 
     let source = null;
@@ -334,6 +393,7 @@ export class AudioEngine extends EventTarget {
 
     this.peerHost.appendChild(el);
     el.play().catch(() => {});
+    if (settings.mixer && this.sessionActive) this.playBus().catch(() => {});
 
     this.peers.set(id, {
       stream,
@@ -514,6 +574,8 @@ export class AudioEngine extends EventTarget {
 
   stop() {
     clearInterval(this.fallbackTimer);
+    this.stopKeepAlive();
+    this.bus.pause();
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.started = false;

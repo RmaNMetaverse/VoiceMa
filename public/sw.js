@@ -5,7 +5,7 @@
  * always go to the network. Only the static shell is cached, so a stale cache
  * can never desync a live call.
  */
-const VERSION = 'voicema-v3';
+const VERSION = 'voicema-v4';
 
 // Resolved against the worker's own location, so the same file works whether
 // the app is mounted at / or at /VoiceMa/.

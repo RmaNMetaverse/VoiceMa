@@ -140,7 +140,7 @@ function buildGate() {
 
     // The submit click is our user gesture: unlock audio playback here so the
     // browser lets the bus element run for the rest of the session.
-    audio.ensureContext().catch(() => {});
+    audio.primePlayback().catch(() => {});
 
     net.connect({ name, hue: settings.hue, password: $('gate-password').value || undefined });
   });
@@ -243,6 +243,7 @@ net.addEventListener('join:denied', ({ detail }) => {
   if (!state.channel && audio.started) {
     setMicEnabled(false);
     audio.stopCapture();
+    audio.setSessionActive(false, false).catch(() => {});
     refreshDevices();
   }
 });
@@ -358,6 +359,7 @@ function renderAll() {
   $('btn-leave').disabled = !state.channel;
 
   participants.sync(members, net.selfId, volumeFor);
+  syncMeterLoop();
 
   keepalive.setMetadata({
     channel: channel?.name ?? '',
@@ -403,8 +405,7 @@ async function joinChannel(id, password) {
     }
   }
 
-  await audio.ensureContext();
-  await audio.playBus();
+  await audio.setSessionActive(true, settings.background);
 
   // The server confirms by sending a roster; applyRoster finishes the join.
   state.pendingJoin = { id, password: password ?? '' };
@@ -651,6 +652,7 @@ const meterFill = (node, v) => {
 const dbToUnit = (db) => Math.max(0, Math.min(1, (db + 70) / 65));
 
 audio.addEventListener('level', ({ detail }) => {
+  if (document.visibilityState !== 'visible') return;
   const v = dbToUnit(detail.db);
   meterFill($('self-meter').firstElementChild, v);
   if (!$('settings').hidden) {
@@ -660,14 +662,20 @@ audio.addEventListener('level', ({ detail }) => {
   participants.setLevel(net.selfId, v);
 });
 
-function meterLoop() {
-  if (document.visibilityState === 'visible' && state.channel) {
-    const levels = audio.peerLevels();
-    for (const [id, v] of Object.entries(levels)) participants.setLevel(id, v);
+let meterTimer = null;
+function syncMeterLoop() {
+  const shouldRun = document.visibilityState === 'visible' && !!state.channel;
+  if (shouldRun && !meterTimer) {
+    meterTimer = setInterval(() => {
+      const levels = audio.peerLevels();
+      for (const [id, v] of Object.entries(levels)) participants.setLevel(id, v);
+    }, 100);
+  } else if (!shouldRun && meterTimer) {
+    clearInterval(meterTimer);
+    meterTimer = null;
   }
-  requestAnimationFrame(meterLoop);
 }
-requestAnimationFrame(meterLoop);
+document.addEventListener('visibilitychange', syncMeterLoop);
 
 mesh.addEventListener('stats', ({ detail }) => {
   state.stats = detail;
@@ -1071,9 +1079,9 @@ function wireSettings() {
 
   const bg = $('chk-background');
   bg.checked = settings.background;
-  bg.addEventListener('change', () => {
+  bg.addEventListener('change', async () => {
     set({ background: bg.checked });
-    if (bg.checked) keepalive.setupMediaSession();
+    await keepalive.setBackgroundEnabled(bg.checked);
   });
 
   const fullscreen = $('chk-fullscreen');

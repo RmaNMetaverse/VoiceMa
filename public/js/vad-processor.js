@@ -24,7 +24,7 @@ class GateProcessor extends AudioWorkletProcessor {
     this.gate = 0; // current gate gain, ramped to avoid clicks
     this.openUntil = 0; // sampleTime the hold expires at
     this.speaking = false;
-    this.blocks = 0;
+    this.telemetrySamples = 0;
     this.peak = 0;
   }
 
@@ -37,6 +37,20 @@ class GateProcessor extends AudioWorkletProcessor {
     const threshold = params.threshold[0];
     const hold = params.hold[0];
     const mode = Math.round(params.mode[0]);
+
+    // A muted mic (including released PTT) needs neither level analysis nor
+    // sample-by-sample gate ramps.
+    if (mode === 0) {
+      for (const out of output) out.fill(0);
+      this.gate = 0;
+      this.envelope = 0;
+      this.openUntil = 0;
+      if (this.speaking) {
+        this.speaking = false;
+        this.port.postMessage({ type: 'speaking', speaking: false });
+      }
+      return true;
+    }
 
     if (!ch) {
       // No input yet — emit silence but stay alive.
@@ -92,9 +106,10 @@ class GateProcessor extends AudioWorkletProcessor {
     // Mirror to any extra output channels so mono mics fill a stereo sink.
     for (let c = 1; c < output.length; c++) output[c].set(out);
 
-    // --- meter telemetry, ~30 Hz ----------------------------------
-    if (++this.blocks >= 12) {
-      this.blocks = 0;
+    // --- meter telemetry, ~10 Hz ----------------------------------
+    this.telemetrySamples += ch.length;
+    if (this.telemetrySamples >= sampleRate / 10) {
+      this.telemetrySamples = 0;
       this.port.postMessage({ type: 'level', db, peak: this.peak, open: speaking });
       this.peak = 0;
     }

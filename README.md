@@ -134,13 +134,14 @@ device, and Settings → App turns even that off.
 Two different problems, handled by two different mechanisms.
 
 **Screen stays on while you are using the app** — the Screen Wake Lock API.
-Toggle it under Settings → App → *Keep screen awake*. The browser drops the lock
-whenever the page is hidden, so the app re-acquires it every time you come back.
+It is off by default to protect phone batteries; opt in under Settings → App →
+*Keep screen awake*. The browser drops the lock whenever the page is hidden, so
+the app re-acquires it every time you come back.
 
 **Audio keeps flowing when the screen is off or the app is minimised** — mobile
 browsers freeze background tabs, but a tab actively playing audio through a
-media element is exempt. Every remote voice is mixed into one `<audio>` element
-that plays permanently, and the app registers a Media Session so the OS treats
+media element is exempt. While you are in a channel, every remote voice is mixed
+into one `<audio>` element and the app registers a Media Session so the OS treats
 it as a media player.
 
 What that means per platform:
@@ -219,8 +220,8 @@ The microphone is opened when you join a channel and **released the moment you
 leave** — the track is stopped, so the operating system's recording indicator
 goes out and other apps can use the device. Nothing is captured while you are
 sitting on the channel list, and a channel whose password you get wrong never
-opens the microphone at all. Playback stays alive throughout, so background
-audio and the connection are unaffected.
+opens the microphone at all. Playback also suspends in the lobby, so the phone
+does not hold its audio hardware open after you leave.
 
 ### Chat notifications
 

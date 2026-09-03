@@ -34,7 +34,9 @@ export class Keepalive extends EventTarget {
 
     // Some platforms pause media when audio focus is lost and never resume it.
     this.audio.bus?.addEventListener('pause', () => {
-      if (this.active) setTimeout(() => this.audio.playBus(), 250);
+      if (this.active && (settings.background || document.visibilityState === 'visible')) {
+        setTimeout(() => this.audio.playBus(), 250);
+      }
     });
   }
 
@@ -46,16 +48,17 @@ export class Keepalive extends EventTarget {
     this.active = active;
 
     if (active) {
+      await this.audio.setSessionActive(true, settings.background);
       await this.requestWakeLock();
-      this.setupMediaSession();
-      this.startWatchdog();
+      if (settings.background) {
+        this.setupMediaSession();
+        this.startWatchdog();
+      }
     } else {
       await this.releaseWakeLock();
       this.stopWatchdog();
-      if (this.supportsMediaSession) {
-        navigator.mediaSession.playbackState = 'none';
-        navigator.mediaSession.metadata = null;
-      }
+      this.clearMediaSession();
+      await this.audio.setSessionActive(false, false);
     }
     this.emit();
   }
@@ -107,7 +110,7 @@ export class Keepalive extends EventTarget {
     if (document.visibilityState === 'visible') {
       await this.resumeAudio();
       if (this.active) await this.requestWakeLock();
-    } else if (this.active) {
+    } else if (this.active && settings.background) {
       // Going into the background is exactly when playback must not stop.
       this.resumeAudio();
     }
@@ -174,6 +177,27 @@ export class Keepalive extends EventTarget {
     handle('nexttrack', null);
     handle('seekbackward', null);
     handle('seekforward', null);
+  }
+
+  clearMediaSession() {
+    if (!this.supportsMediaSession) return;
+    navigator.mediaSession.playbackState = 'none';
+    navigator.mediaSession.metadata = null;
+  }
+
+  /** Applies the preference immediately; disabling it used to change only UI. */
+  async setBackgroundEnabled(enabled) {
+    this.audio.setBackgroundEnabled(enabled);
+    if (!this.active) return;
+    if (enabled) {
+      this.setupMediaSession();
+      this.startWatchdog();
+      await this.resumeAudio();
+    } else {
+      this.stopWatchdog();
+      this.clearMediaSession();
+    }
+    this.emit();
   }
 
   /**

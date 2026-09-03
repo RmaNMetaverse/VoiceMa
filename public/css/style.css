@@ -1834,6 +1834,29 @@ body.is-ptt .dock-ptt {
   display: none;
 }
 
+/* Mobile GPUs pay dearly for recompositing blurred, animated layers behind
+   backdrop-filter surfaces. Preserve the palette with static opaque glass. */
+@media (hover: none) and (pointer: coarse) {
+  .blob,
+  .empty-orb,
+  .gate-mark img,
+  .card.is-speaking .avatar-wrap::before,
+  .card.is-speaking .avatar-wrap::after,
+  .dock-btn.is-latched {
+    animation: none !important;
+  }
+  .blob {
+    will-change: auto;
+  }
+  .glass,
+  .card,
+  .toast {
+    background: var(--glass-strong);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 @media (max-width: 900px) {
   .chat {
     position: fixed;
